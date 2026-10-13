@@ -1,0 +1,105 @@
+name: szu-knowledge
+services:
+  crawl4ai:
+    image: unclecode/crawl4ai:0.9.3
+    container_name: szu-crawl4ai
+    extra_hosts: ["jwb.szu.edu.cn:${SZU_JWB_IP:?Resolved by szu_stack.py}"]
+    ports: ["127.0.0.1:11235:11235"]
+    environment:
+      CRAWL4AI_API_TOKEN: ${CRAWL4AI_API_TOKEN:?Set by szu_stack.py}
+    shm_size: 1gb
+    mem_limit: 2g
+    restart: unless-stopped
+  mysql:
+    profiles: [ragflow]
+    image: mysql:8.0.40
+    environment:
+      MYSQL_ROOT_PASSWORD: ${SZU_STACK_PASSWORD:?Set by szu_stack.py}
+      MYSQL_DATABASE: rag_flow
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci", "--max_allowed_packet=1073741824", "--default-authentication-plugin=mysql_native_password"]
+    volumes: ["mysql_data:/var/lib/mysql"]
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+    restart: unless-stopped
+  es01:
+    profiles: [ragflow]
+    image: elasticsearch:8.11.3
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: 'true'
+      xpack.security.http.ssl.enabled: 'false'
+      xpack.security.transport.ssl.enabled: 'false'
+      ELASTIC_PASSWORD: ${SZU_STACK_PASSWORD:?Set by szu_stack.py}
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+      cluster.routing.allocation.disk.watermark.low: 5gb
+      cluster.routing.allocation.disk.watermark.high: 3gb
+      cluster.routing.allocation.disk.watermark.flood_stage: 2gb
+    volumes: ["es_data:/usr/share/elasticsearch/data"]
+    tmpfs: ["/tmp:mode=1777,size=512m"]
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -u elastic:$$ELASTIC_PASSWORD http://localhost:9200/_cluster/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 90
+    restart: unless-stopped
+  minio:
+    profiles: [ragflow]
+    image: pgsty/silo:RELEASE.2026-08-06T00-00-00Z
+    environment:
+      MINIO_ROOT_USER: rag_flow
+      MINIO_ROOT_PASSWORD: ${SZU_STACK_PASSWORD:?Set by szu_stack.py}
+    command: ["server", "/data", "--console-address", ":9001"]
+    volumes: ["minio_data:/data"]
+    mem_limit: 512m
+    restart: unless-stopped
+  redis:
+    profiles: [ragflow]
+    image: valkey/valkey:8
+    command: ["valkey-server", "--requirepass", "${SZU_STACK_PASSWORD:?Set by szu_stack.py}", "--maxmemory", "128mb", "--maxmemory-policy", "volatile-lru"]
+    volumes: ["redis_data:/data"]
+    mem_limit: 256m
+    restart: unless-stopped
+  ragflow:
+    profiles: [ragflow]
+    image: infiniflow/ragflow:v0.27.2
+    command: ["--init-model-provider-tables"]
+    ports: ["127.0.0.1:8088:80", "127.0.0.1:9380:9380"]
+    depends_on:
+      mysql: {condition: service_healthy}
+      es01: {condition: service_healthy}
+      minio: {condition: service_started}
+      redis: {condition: service_started}
+    environment:
+      DOC_ENGINE: elasticsearch
+      DB_TYPE: mysql
+      DEVICE: cpu
+      MYSQL_HOST: mysql
+      MYSQL_DBNAME: rag_flow
+      MYSQL_PASSWORD: ${SZU_STACK_PASSWORD:?Set by szu_stack.py}
+      ES_HOST: es01
+      ELASTIC_PASSWORD: ${SZU_STACK_PASSWORD:?Set by szu_stack.py}
+      MINIO_HOST: minio
+      MINIO_USER: rag_flow
+      MINIO_PASSWORD: ${SZU_STACK_PASSWORD:?Set by szu_stack.py}
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${SZU_STACK_PASSWORD:?Set by szu_stack.py}
+      API_PROXY_SCHEME: python
+      REGISTER_ENABLED: '1'
+      TZ: Asia/Shanghai
+      DOC_BULK_SIZE: '1'
+    volumes:
+      - ./szu-service-conf.yaml.template:/ragflow/conf/service_conf.yaml.template:ro
+      - ragflow_logs:/ragflow/logs
+    mem_limit: 5g
+    restart: unless-stopped
+volumes:
+  mysql_data:
+  es_data:
+  minio_data:
+  redis_data:
+  ragflow_logs:
