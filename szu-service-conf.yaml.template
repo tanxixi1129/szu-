@@ -1,0 +1,33 @@
+ragflow:
+  host: 0.0.0.0
+  http_port: 9380
+mysql:
+  name: '${MYSQL_DBNAME:-rag_flow}'
+  user: root
+  password: '${MYSQL_PASSWORD}'
+  host: '${MYSQL_HOST:-mysql}'
+  port: 3306
+  max_connections: 100
+  stale_timeout: 300
+  max_allowed_packet: 1073741824
+minio:
+  user: '${MINIO_USER:-rag_flow}'
+  password: '${MINIO_PASSWORD}'
+  host: '${MINIO_HOST:-minio}:9000'
+es:
+  hosts: 'http://${ES_HOST:-es01}:9200'
+  username: elastic
+  password: '${ELASTIC_PASSWORD}'
+redis:
+  db: 1
+  password: '${REDIS_PASSWORD}'
+  host: '${REDIS_HOST:-redis}:6379'
+user_default_llm:
+  factory: ''
+  api_key: ''
+  default_models:
+    chat_model: ''
+    embedding_model: ''
+    rerank_model: ''
+    asr_model: ''
+    image2text_model: ''
