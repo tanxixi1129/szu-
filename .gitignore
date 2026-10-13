@@ -1,0 +1,24 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+data/
+.playwright-cli/
+.playwright-mcp/
+output/playwright/
+
+# Local credentials, runtime files and installation/debug artifacts
+.env.*
+!.env.example
+*.pem
+*.key
+*.log
+*.exe
+docker-settings-store.backup.json
+docker-settings-store.edit.json
+inspect-codex-dom.mjs
+SHA256SUMS-v1.5.18.txt
+
+# Unrelated private community analytics
+淘宝闪购店铺排行榜_*
